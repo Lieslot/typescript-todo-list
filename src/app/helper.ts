@@ -11,6 +11,16 @@ class DOMHelper {
         return parent.querySelector(selector) as T
     }
 
+    static querySelectorAll<T extends HTMLElement>(
+        selector: string,
+        parent : Document | HTMLElement = document
+    ) : T[] {
+        if (!parent) {
+            return []
+        }
+        return Array.from(parent.querySelectorAll(selector)) as T[]
+    }
+
 
     static closest<T extends HTMLElement>(
         target : HTMLElement,

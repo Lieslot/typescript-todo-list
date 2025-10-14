@@ -24,8 +24,8 @@ class Timer  {
             clearInterval(this.intervalid)
             this.intervalid = undefined
         }
-        this.elapsed = 0
         this.startTime = 0
+        this.elapsed = 0
         this.intervalid = undefined
         const timerDisplay = document.getElementById("timer-display")
         if (!timerDisplay) {

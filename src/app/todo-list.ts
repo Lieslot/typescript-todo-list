@@ -1,64 +1,49 @@
-import type { TodoItem, TodoList } from "./domian/todo-list.ts"
+import type { TodoList } from "./domian/todo-list.ts"
 import { DOMHelper } from "./helper.ts"
 import { TodoListRepository } from "./repository/todo-list-repository.ts"
+import { renderTodoContainer, renderTodoItem, renderTodoList } from "./view/todo-list.ts"
 
 const todoListRepository = new TodoListRepository()
 
 const displayTodoList = async () => {
 
-    DOMHelper.querySelector<HTMLElement>(".todo-container")!.innerHTML = 
-    `
-    <button class='todo-list-add-button'>Add Todo list</button>
-    `
+    const todoCotainer = renderTodoContainer()
 
-    const todoList = await todoListRepository.findAllTodoLists()
+    DOMHelper.querySelector(".todo-list-add-button", todoCotainer)?.addEventListener("click", handleTodoListAdd)
 
-    todoList.forEach(async todoList => {
-        const todoCotainer = DOMHelper.querySelector(".todo-container")
-        if (!todoCotainer) {
-            return
-        }
-
+    const todo : TodoList[] = await todoListRepository.findAllTodoLists()
+    // positionでソート
+    todo.sort((todoListA, todoListB) => todoListA.position - todoListB.position)
+    todo.forEach(async todoList => {
        const todoListElement = renderTodoList(todoList)
-
-
-       DOMHelper.querySelector(".todo-list-item-add-button", todoListElement)?.addEventListener("click", (event: Event) => {
-            const target = event.target as HTMLElement
-            if (!target) {
-                return
-            }
-            displayTodoItemForm(todoListElement)
-       })
-
-        DOMHelper.querySelector(".todo-list-form-input", todoListElement)?.addEventListener("keydown", (event: Event) => {
-            const currentEvent = event as KeyboardEvent
-            if (currentEvent.key === "Enter") {
-                handleTodoItemSubmit(currentEvent.target as HTMLInputElement)
-            }
-        })
-
-        DOMHelper.querySelector(".todo-list-add-button", todoCotainer)?.addEventListener("click", (event: Event) => {
-            const target = event.target as HTMLElement
-            if (!target) {
-                return
-            }
-            handleTodoListAddButtonClick(target as HTMLInputElement)
-        })
-
-
 
         todoCotainer.appendChild(todoListElement)
 
+        // positionでソート
+        todoList.todoList.sort((todoItemA, todoItemB) => todoItemA.position - todoItemB.position)
         todoList.todoList.forEach(todoItem => {
             const todoItemElement = renderTodoItem(todoItem)
             DOMHelper.querySelector(".todo-list-form", todoListElement)?.before(todoItemElement)
+
         })
+
+       await registerTodoListEvent(todoListElement)
+
 
     })
 }
 
-const displayTodoItemForm = (container: HTMLElement) => {
-    const form = DOMHelper.querySelector('.todo-list-form', container)
+const handleTodoItemForm = (event: Event) => {
+    const target = event.target
+    if (!target) {
+        return
+    }
+    const todoListContainer = DOMHelper.closest(target as HTMLElement, ".todo-list-container")
+    if (!todoListContainer) {
+        return
+    }
+
+    const form = DOMHelper.querySelector('.todo-list-form', todoListContainer)
     if (!form) {
         return
     }
@@ -66,84 +51,96 @@ const displayTodoItemForm = (container: HTMLElement) => {
     form.style.display = 'block'
 }
 
-const hideTodoItemForm = (container: HTMLElement) => {
-    const form = DOMHelper.querySelector('.todo-list-form', container)
-    if (!form) {
+const handleTodoItemAdd = async (event: KeyboardEvent) => {
+    if (event.key !== "Enter") {
         return
     }
-    form.style.display = 'none'
-}
 
-const handleTodoItemSubmit = async (inputElement: HTMLInputElement) => {
-    // 1. 関連するDOM要素を取得
+    const target = event.target 
+    if (!target) {
+        return
+    }
+
+    const inputElement = target as HTMLInputElement
     const todoListContainer = DOMHelper.closest(inputElement, ".todo-list-container");
     if (!todoListContainer) {
         return;
     }
 
-    // 2. フォームを非表示にし、値をリセット
-    hideTodoItemForm(todoListContainer);
     const title = inputElement.value.trim();
-    inputElement.value = "";
-
-    // 3. 入力値が空なら何もしない
     if (title === "") {
         return;
     }
 
-    // 4. データを保存
     const listId = Number(todoListContainer.dataset.listId);
     await todoListRepository.createTodoItem(title, listId);
 
-    // 5. 画面全体を再描画（※これは前回のフィードバックで指摘した通り、本当は部分的な更新にしたい部分）
     await displayTodoList();
 }
 
-const handleTodoListAddButtonClick = async (inputElement: HTMLInputElement) => {
-    const todoListContainer = DOMHelper.closest(inputElement, ".todo-list-container")
-    if (!todoListContainer) {
+const handleTodoListAdd = async (event: Event) => {
+    const target = event.target
+    if (!target) {
         return
     }
-    await todoListRepository.createTodoList(inputElement.value, 0)
+    const inputElement = target as HTMLInputElement
+    const todoContainer = DOMHelper.closest(inputElement, ".todo-container")
+    if (!todoContainer) {
+        return
+    }
+
+    await todoListRepository.createTodoList(inputElement.value)
     await displayTodoList()
 }
 
-const renderTodoList = (todoList: TodoList): HTMLElement => {
-    const todoListElement = document.createElement("div")
-    todoListElement.innerHTML = `
-        <div class="todo-list-container" data-list-id="${todoList.id}">
-            <div class="todo-list-form" style="display: none;">
-                <input type="text" class="todo-list-form-input" id="todo-list-form-input-${todoList.id}">
-            </div>
-            <button class="todo-list-item-add-button">Add</button>
-        </div>
-    `
-    return todoListElement.firstElementChild as HTMLElement
-}
-
-const renderTodoItem = (todoItem: TodoItem): HTMLElement => {
-
-    if (!todoItem.id) {
-        throw new Error("Todo item id is required for renderTodoItem")
+const handleTodoItemDone = async (event: Event) => {
+    const target = event.target
+    if (!target) {
+        return
+    }
+    const todoItem = DOMHelper.closest(target as HTMLElement, ".todo-list-item")
+    const todoListContainer = DOMHelper.closest(todoItem as HTMLElement, ".todo-list-container")
+    if (!todoItem || !todoListContainer) {
+        return
     }
 
-    // todo item htmlを生成（すべてHTML文字列で値を埋め込む形式）
-    const todoItemElement = document.createElement("div")
-    todoItemElement.innerHTML = `
-        <div 
-            class="todo-list-item" 
-            data-item-id="${todoItem.id}" 
-            id="todo-list-item-${todoItem.id}">
-            <input type="checkbox" ${todoItem.isDone ? "checked" : ""}>
-            <span>${todoItem.title}</span>
-            <span>${todoItem.time}</span>
-        </div>
-    `;
-    // div.todo-list-item自体を返すため、中の要素を取得して返す
-    const innerElement = todoItemElement.firstElementChild as HTMLElement
+    if (!todoItem.dataset.position) {
+        console.error("Todo item id is not found")
+        return
+    }
 
-    return innerElement
+    const todoItemPosition = Number(todoItem.dataset.position)
+    const todoListId = Number(todoListContainer.dataset.listId)
+
+    const todoList = await todoListRepository.findTodoListById(todoListId)
+    if (!todoList) {
+        console.error("Todo list is not found")
+        return
+    }
+
+
+    todoList.toggle(todoItemPosition)
+
+    await todoListRepository.saveAllTodoItems(todoList.todoList)
+    await displayTodoList()
+
 }
+
+
+
+const registerTodoListEvent = async (todoListElement: HTMLElement) => {
+
+    DOMHelper.querySelector(".todo-list-item-add-button", todoListElement)?.addEventListener("click", handleTodoItemForm)
+
+    DOMHelper.querySelector(".todo-list-form-input", todoListElement)?.addEventListener("keydown", handleTodoItemAdd)
+
+    DOMHelper.querySelectorAll(".todo-list-item", todoListElement)?.forEach(todoItemElement => {
+        todoItemElement.addEventListener("click", handleTodoItemDone)
+    })
+
+}
+
+
 
 
 await displayTodoList()
