@@ -26,7 +26,6 @@ const renderTodoItem = (todoItem: TodoItem): HTMLElement => {
     const todoItemElement = document.createElement("div")
     todoItemElement.innerHTML = `
         <div 
-            draggable="true"
             class="todo-list-item" 
             data-item-id="${todoItem.id}" 
             data-position="${todoItem.position}"
@@ -58,5 +57,21 @@ const renderTodoContainer = (): HTMLElement => {
 
 }
 
+const renderDragIndicator = () : HTMLElement => {
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    indicator.style.cssText = `
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #2196F3;
+      pointer-events: none;
+      z-index: 1000;
+    `;
+    return indicator;
 
-export { renderTodoList, renderTodoItem, renderTodoContainer }
+}
+
+
+export { renderTodoList, renderTodoItem, renderTodoContainer, renderDragIndicator }

@@ -47,13 +47,43 @@
             overflow: hidden;
             border: 1px solid #000;
             width: 100px;
-            height: 50px;
+            height: 30px;
             text-align: center;
             align-items: center;
             justify-content: center;
             padding: 1rem;
             border-radius: 10px;
+            position: relative; /* 疑似要素の基準点にする */
         }
+
+        .dragging {
+            background-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .todo-list-item .drag-below::after {
+            content: '';
+            position: absolute;
+            bottom: -4px; 
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #2196F3;
+            border-radius: 2px;
+        }
+
+        .todo-list-item .drag-above::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #2196F3;
+            border-radius: 2px;
+        }
+
+
     </style>
 
 </body>

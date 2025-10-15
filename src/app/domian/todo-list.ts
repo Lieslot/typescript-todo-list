@@ -33,12 +33,36 @@ class TodoList {
         this.todoList = []
     }
 
-    public addTodoItem(todoItem: TodoItem) {
-        this.todoList.push(todoItem)
+    private take(todoItem: TodoItem) {
+        todoItem.listId = this.id!
     }
 
-    public addAllTodoItem(todoItems: TodoItem[]) {
+    private shiftPosition() {
+        for (let i = 0; i < this.todoList.length; i++) {
+            this.todoList[i]!.position = i
+        }
+    }
+
+    public insert(todoItem: TodoItem, position: number) {
+        this.take(todoItem)
+        this.todoList.splice(position, 0, todoItem)
+        todoItem.position = position
+        this.shiftPosition()
+    }
+
+    public push(todoItem: TodoItem) {
+        this.take(todoItem)
+        this.todoList.push(todoItem)
+        this.shiftPosition()
+        
+    }
+
+    public pushAll(todoItems: TodoItem[]) {
+        todoItems.forEach(todoItem => {
+            this.take(todoItem)
+        })
         this.todoList.push(...todoItems)
+        this.shiftPosition()
     }
 
     public sortTodoItemByPosition() {
@@ -56,6 +80,7 @@ class TodoList {
 }
 
 class TodoItem {
+
     title: string
     id?: number | undefined
     createdAt: Date

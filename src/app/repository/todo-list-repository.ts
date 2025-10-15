@@ -24,7 +24,7 @@ export class TodoListRepository extends Dexie {
         const todoItems = todoItemsData.map(data => new TodoItem(data))
 
         todoLists.forEach(todoList => {
-            todoList.addAllTodoItem(todoItems.filter(todoItem => todoItem.listId === todoList.id))
+            todoList.pushAll(todoItems.filter(todoItem => todoItem.listId === todoList.id))
         })
 
         return todoLists
@@ -47,14 +47,16 @@ export class TodoListRepository extends Dexie {
 
         const todoItems = todoItemData.map(data => new TodoItem(data))
 
-        todoList.addAllTodoItem(todoItems)
+        todoList.pushAll(todoItems)
         return todoList
     }
 
     public async findTodoItemById(id: number) {
         const data = await this.todoItems.get(id)
+        
         if (!data) return undefined
-        return new TodoItem(data)
+        const todoItem = new TodoItem(data)
+        return todoItem
     }
 
     public async findTodoItemsByListId(listId: number) : Promise<TodoItem[]> {
