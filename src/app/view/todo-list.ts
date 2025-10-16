@@ -28,7 +28,6 @@ const renderTodoItem = (todoItem: TodoItem): HTMLElement => {
         <div 
             class="todo-list-item" 
             data-item-id="${todoItem.id}" 
-            data-position="${todoItem.position}"
             id="todo-list-item-${todoItem.id}">
             <input type="checkbox" ${todoItem.isDone ? "checked" : ""}>
             <span>${todoItem.title}</span>
@@ -61,10 +60,14 @@ const renderDragIndicator = () : HTMLElement => {
     const indicator = document.createElement('div');
     indicator.className = 'drop-indicator';
     indicator.style.cssText = `
-      position: absolute;
+      position: relative;
       left: 0;
       right: 0;
-      height: 2px;
+      top: 0;
+      bottom: 0;
+      height: 5px;
+      padding: 0;
+      margin: -7px -7px -7px -7px;
       background: #2196F3;
       pointer-events: none;
       z-index: 1000;

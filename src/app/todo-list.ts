@@ -1,14 +1,14 @@
-import type { TodoList } from "./domian/todo-list.ts"
+import { movePosition, type TodoList } from "./domian/todo-list.ts"
 import { DOMHelper } from "./helper.ts"
 import { TodoListRepository } from "./repository/todo-list-repository.ts"
 import { renderDragIndicator, renderTodoContainer, renderTodoItem, renderTodoList } from "./view/todo-list.ts"
+import lodash from "lodash"
 
 const todoListRepository = new TodoListRepository()
 let curDraggedItemClone: HTMLElement | null = null;
 let curDraggedItem: HTMLElement | null = null;
 let curContainer: HTMLElement | null = null;
 let curDragIndicator: HTMLElement | null = null;
-
 const handleDragStart = (event: MouseEvent) => {
 
     const target = (event.target as HTMLElement).closest(".todo-list-item")
@@ -47,48 +47,63 @@ const handleDragOver = (event: MouseEvent) => {
 };
 
 const handleDrop = async (event: MouseEvent) => {
-
+    // 必須情報がそもそも欠けていたら全解放して終了
     if (!curDraggedItemClone || !curDraggedItem) {
-        return
+        freeAllDragElements();
+        return;
     }
-    
-    // fixme: containerの内部の要素がない場合も考慮
+
+    // ドロップ操作のコンテキストをまとめて得る
+    const context = {
+        draggedItemId: curDraggedItem?.dataset.itemId ? Number(curDraggedItem.dataset.itemId) : null,
+        targetListId: curContainer?.dataset.listId ? Number(curContainer.dataset.listId) : null,
+        indicator: curDragIndicator,
+        container: curContainer,
+        draggedElement: curDraggedItem
+    };
+
+    if (!context.indicator || context.draggedItemId == null || context.targetListId == null) {
+        freeAllDragElements();
+        return;
+    }
+
+    // nextElementSiblingとして次のtodoアイテムを得る（インジケーターの直後）
+    const nextItemElem = context.indicator.nextElementSibling as HTMLElement | null;
+
+    // 移動元と挿入候補が同じなら何もしない
+    if (context.draggedElement === nextItemElem) {
+        freeAllDragElements();
+        return;
+    }
+
+    // .todo-list-itemならそこのitemIdを、なければnull（= 末尾）
+    const targetItemId = nextItemElem?.classList.contains('todo-list-item')
+        ? Number(nextItemElem.dataset.itemId)
+        : null;
+
+    // 実際のロジックをまとめて実行
+    await movePosition(context.draggedItemId, targetItemId, context.targetListId);
+
+    freeAllDragElements();
+    await displayTodoList();
+}
+
+const freeAllDragElements = () => {
+    if (!curDraggedItemClone) {
+        return;
+    }
+
+    curDraggedItemClone.remove();
+    curDraggedItemClone = null;
+    if (curDraggedItem) {
+        curDraggedItem.style.opacity = '1';
+        curDraggedItem = null;
+    }
+    curContainer = null;
     if (curDragIndicator) {
-        const targetItemElement = curDragIndicator.previousElementSibling as HTMLElement
-
-        const targetItemId = targetItemElement ? Number(targetItemElement.dataset.itemId) : 0
-        const draggedItemId = Number(curDraggedItem?.dataset.itemId)
-        const todoListId = Number(curContainer?.dataset.listId)
-
-        const targetTodoList = await todoListRepository.findTodoListById(todoListId)
-        const draggedTodoItem = await todoListRepository.findTodoItemById(draggedItemId)
-        const targetTodoItem = await todoListRepository.findTodoItemById(targetItemId)
-
-
-        if (targetTodoList?.todoList.length === 0) {
-            targetTodoList.push(draggedTodoItem!)
-            await todoListRepository.saveAllTodoItems(targetTodoList.todoList)
-        } else {
-            targetTodoList?.insert(draggedTodoItem!, targetTodoItem!.position)
-            await todoListRepository.saveAllTodoItems(targetTodoList!.todoList)
-        }
-
-        curDragIndicator.remove()
-        curDragIndicator = null
-        
+        curDragIndicator.remove();
+        curDragIndicator = null;
     }
-    
-    curDraggedItemClone.remove()
-    curDraggedItemClone = null
-
-    curDraggedItem.style.opacity = '1'
-    curDraggedItem = null
-
-    curContainer = null
-    
-
-    await displayTodoList()
-
 }
 
 
@@ -130,6 +145,7 @@ const handleContainerDragOver = (event: MouseEvent) => {
     const rect = closestItem.getBoundingClientRect()
     const midPoint = rect.top + rect.height / 2
 
+
     if (event.clientY < midPoint) {
         closestItem.before(newIndicator)
     } else {
@@ -152,36 +168,35 @@ const handleContainerDragLeave = (event: MouseEvent) => {
 
 
 const displayTodoList = async () => {
+    const todoContainer = renderTodoContainer();
+    DOMHelper.querySelector(".todo-list-add-button", todoContainer)?.addEventListener("click", handleTodoListAdd);
 
-    const todoCotainer = renderTodoContainer()
+    const todoLists: TodoList[] = await todoListRepository.findAllTodoLists();
 
-    DOMHelper.querySelector(".todo-list-add-button", todoCotainer)?.addEventListener("click", handleTodoListAdd)
+    todoLists.forEach(async todoList => {
+        const todoListElement = renderTodoList(todoList);
+        todoContainer.appendChild(todoListElement);
 
-    const todo : TodoList[] = await todoListRepository.findAllTodoLists()
-    // positionでソート
-    todo.sort((todoListA, todoListB) => todoListA.position - todoListB.position)
-    todo.forEach(async todoList => {
-       const todoListElement = renderTodoList(todoList)
+        todoListElement.addEventListener("mouseover", lodash.throttle(handleContainerDragOver, 10));
+        todoListElement.addEventListener("mouseleave", handleContainerDragLeave);
 
-        todoCotainer.appendChild(todoListElement)
+        // 連結リストを直接ループ
+        for (const todoItem of todoList) {
+            const todoItemElement = renderTodoItem(todoItem);
+            todoItemElement.addEventListener("mousedown", handleDragStart);
+            DOMHelper.querySelector(".todo-list-form", todoListElement)?.before(todoItemElement);
+        }
 
-        todoListElement.addEventListener("mouseover", handleContainerDragOver)
-        todoListElement.addEventListener("mouseleave", handleContainerDragLeave)
+        await registerTodoListEvent(todoListElement);
+    });
 
-        // positionでソート
-        todoList.todoList.sort((todoItemA, todoItemB) => todoItemA.position - todoItemB.position)
-        todoList.todoList.forEach(todoItem => {
-            const todoItemElement = renderTodoItem(todoItem)
-
-            todoItemElement.addEventListener("mousedown", handleDragStart)
-
-            DOMHelper.querySelector(".todo-list-form", todoListElement)?.before(todoItemElement)
-        })
-
-       await registerTodoListEvent(todoListElement)
-
-
-    })
+    // 古い要素を削除して新しいtodoContainerをbodyに追加
+    const oldContainer = document.querySelector(".todo-container");
+    if (oldContainer) {
+        oldContainer.replaceWith(todoContainer);
+    } else {
+        document.body.appendChild(todoContainer);
+    }
 }
 
 
@@ -247,36 +262,30 @@ const handleTodoListAdd = async (event: Event) => {
 }
 
 const handleTodoItemDone = async (event: Event) => {
-    const target = event.target
-    if (!target) {
-        return
-    }
-    const todoItem = DOMHelper.closest(target as HTMLElement, ".todo-list-item")
-    const todoListContainer = DOMHelper.closest(todoItem as HTMLElement, ".todo-list-container")
-    if (!todoItem || !todoListContainer) {
-        return
-    }
+    const target = event.target;
+    if (!target) return;
 
-    if (!todoItem.dataset.position) {
-        console.error("Todo item id is not found")
-        return
+    const todoItemElement = DOMHelper.closest(target as HTMLElement, ".todo-list-item");
+    if (!todoItemElement) return;
+
+    const todoItemId = Number(todoItemElement.dataset.itemId);
+    if (!todoItemId) {
+        console.error("Todo item id is not found");
+        return;
     }
 
-    const todoItemPosition = Number(todoItem.dataset.position)
-    const todoListId = Number(todoListContainer.dataset.listId)
-
-    const todoList = await todoListRepository.findTodoListById(todoListId)
-    if (!todoList) {
-        console.error("Todo list is not found")
-        return
+    const todoItem = await todoListRepository.findTodoItemById(todoItemId);
+    if (!todoItem) {
+        console.error("Todo item is not found in repository");
+        return;
     }
+    
+    // アイテムのisDoneをトグルし、DBに保存
+    todoItem.toggle();
+    await todoListRepository.saveTodoItem(todoItem);
 
-
-    todoList.toggle(todoItemPosition)
-
-    await todoListRepository.saveAllTodoItems(todoList.todoList)
-    await displayTodoList()
-
+    // UIを再描画
+    await displayTodoList();
 }
 
 
@@ -293,9 +302,13 @@ const registerTodoListEvent = async (todoListElement: HTMLElement) => {
 
 }
 
-document.addEventListener("mouseover", handleDragOver)
+
+
+document.addEventListener("mouseover", lodash.throttle(handleDragOver, 10))
 document.addEventListener("mouseup", handleDrop) 
 
 
 await displayTodoList()
 
+
+export { todoListRepository }
