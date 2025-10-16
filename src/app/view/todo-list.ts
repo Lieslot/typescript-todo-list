@@ -28,7 +28,9 @@ const renderTodoItem = (todoItem: TodoItem): HTMLElement => {
         <div 
             class="todo-list-item" 
             data-item-id="${todoItem.id}" 
-            id="todo-list-item-${todoItem.id}">
+            id="todo-list-item-${todoItem.id}"
+            draggable="true"
+        >
             <input type="checkbox" ${todoItem.isDone ? "checked" : ""}>
             <span>${todoItem.title}</span>
         </div>
@@ -37,6 +39,16 @@ const renderTodoItem = (todoItem: TodoItem): HTMLElement => {
     const innerElement = todoItemElement.firstElementChild as HTMLElement
 
     return innerElement
+}
+
+const renderCloneTodoItem = (todoItem: HTMLElement): HTMLElement => {
+
+    const cloneTodoItemElement = todoItem.cloneNode(true) as HTMLElement
+    cloneTodoItemElement.style.position = 'fixed';
+    cloneTodoItemElement.style.opacity = '0.5';
+    cloneTodoItemElement.style.pointerEvents = 'none';
+    cloneTodoItemElement.style.zIndex = '9999';
+    return cloneTodoItemElement
 }
 
 
@@ -77,4 +89,4 @@ const renderDragIndicator = () : HTMLElement => {
 }
 
 
-export { renderTodoList, renderTodoItem, renderTodoContainer, renderDragIndicator }
+export { renderTodoList, renderTodoItem, renderTodoContainer, renderDragIndicator, renderCloneTodoItem }

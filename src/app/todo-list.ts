@@ -1,54 +1,31 @@
 import { movePosition, type TodoList } from "./domian/todo-list.ts"
 import { DOMHelper } from "./helper.ts"
 import { TodoListRepository } from "./repository/todo-list-repository.ts"
-import { renderDragIndicator, renderTodoContainer, renderTodoItem, renderTodoList } from "./view/todo-list.ts"
+import { renderCloneTodoItem, renderDragIndicator, renderTodoContainer, renderTodoItem, renderTodoList } from "./view/todo-list.ts"
 import lodash from "lodash"
 
 const todoListRepository = new TodoListRepository()
-let curDraggedItemClone: HTMLElement | null = null;
 let curDraggedItem: HTMLElement | null = null;
 let curContainer: HTMLElement | null = null;
 let curDragIndicator: HTMLElement | null = null;
 const handleDragStart = (event: MouseEvent) => {
-
-    const target = (event.target as HTMLElement).closest(".todo-list-item")
+    const target = (event.target as HTMLElement).closest(".todo-list-item") as HTMLElement
     
     if (!target) {
         return
     }
 
-
-    curDraggedItemClone = target.cloneNode(true) as HTMLElement
     curDraggedItem = target as HTMLElement
-
-    curDraggedItemClone.style.left = event.clientX + "px"
-    curDraggedItemClone.style.top = event.clientY + "px"
-    curDraggedItemClone.style.position = 'fixed';
-    curDraggedItemClone.style.opacity = '0.5';
-    curDraggedItemClone.style.pointerEvents = 'none';
-    curDraggedItemClone.style.zIndex = '9999';
-    document.body.appendChild(curDraggedItemClone);
-
     // 元の要素を薄くする
-    curDraggedItem.style.opacity = '0.3';
 
 };
 
 
-const handleDragOver = (event: MouseEvent) => {
-    event.preventDefault();
-    if (!curDraggedItemClone) {
-        return
-    }
-    
-    curDraggedItemClone.style.left = event.clientX + "px"
-    curDraggedItemClone.style.top = event.clientY + "px"
-
-};
 
 const handleDrop = async (event: MouseEvent) => {
+    event.preventDefault();
     // 必須情報がそもそも欠けていたら全解放して終了
-    if (!curDraggedItemClone || !curDraggedItem) {
+    if (!curDraggedItem) {
         freeAllDragElements();
         return;
     }
@@ -89,14 +66,11 @@ const handleDrop = async (event: MouseEvent) => {
 }
 
 const freeAllDragElements = () => {
-    if (!curDraggedItemClone) {
+    if (!curDraggedItem) {
         return;
     }
 
-    curDraggedItemClone.remove();
-    curDraggedItemClone = null;
     if (curDraggedItem) {
-        curDraggedItem.style.opacity = '1';
         curDraggedItem = null;
     }
     curContainer = null;
@@ -108,8 +82,8 @@ const freeAllDragElements = () => {
 
 
 const handleContainerDragOver = (event: MouseEvent) => {
-
-    if (!curDraggedItemClone) {
+    event.preventDefault();
+    if (!curDraggedItem) {
         return
     }
 
@@ -155,7 +129,6 @@ const handleContainerDragOver = (event: MouseEvent) => {
 }
 
 const handleContainerDragLeave = (event: MouseEvent) => {
-
     curContainer = null
     if (!curDragIndicator) {
         return
@@ -177,13 +150,13 @@ const displayTodoList = async () => {
         const todoListElement = renderTodoList(todoList);
         todoContainer.appendChild(todoListElement);
 
-        todoListElement.addEventListener("mouseover", lodash.throttle(handleContainerDragOver, 10));
-        todoListElement.addEventListener("mouseleave", handleContainerDragLeave);
+        todoListElement.addEventListener("dragover", lodash.throttle(handleContainerDragOver, 10));
+        todoListElement.addEventListener("dragleave", handleContainerDragLeave);
 
         // 連結リストを直接ループ
         for (const todoItem of todoList) {
             const todoItemElement = renderTodoItem(todoItem);
-            todoItemElement.addEventListener("mousedown", handleDragStart);
+            todoItemElement.addEventListener("dragstart", handleDragStart);
             DOMHelper.querySelector(".todo-list-form", todoListElement)?.before(todoItemElement);
         }
 
@@ -304,9 +277,8 @@ const registerTodoListEvent = async (todoListElement: HTMLElement) => {
 
 
 
-document.addEventListener("mouseover", lodash.throttle(handleDragOver, 10))
-document.addEventListener("mouseup", handleDrop) 
-
+document.addEventListener("drop", handleDrop) 
+document.addEventListener("dragover", (event) => event.preventDefault())
 
 await displayTodoList()
 
